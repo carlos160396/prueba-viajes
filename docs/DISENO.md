@@ -68,3 +68,22 @@ La fecha final no podrá ser anterior a la inicial.
 El cupo disponible deberá estar entre cero y el cupo total.
 
 No se permitirá borrar usuarios o paquetes asociados a reservas.
+
+## Componentes
+
+```mermaid
+flowchart TD
+    Frontend --> API
+    API --> PostgreSQL
+    API --> Redis
+    API --> RabbitMQ
+    RabbitMQ --> Worker
+    Worker --> PostgreSQL
+```
+
+- Frontend: muestra paquetes y permite realizar reservaciones.
+- API: valida los datos, permisos y disponibilidad.
+- PostgreSQL: guarda usuarios, paquetes, reservaciones y notificaciones.
+- Redis: guarda temporalmente los listados de paquetes para reducir consultas.
+- RabbitMQ: recibe el evento cuando se crea una reservación.
+- Worker: procesa el evento y guarda una notificación simulada.
