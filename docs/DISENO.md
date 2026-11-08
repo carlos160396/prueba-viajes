@@ -126,3 +126,13 @@ sequenceDiagram
 El bloqueo del paquete evita que dos solicitudes utilicen el mismo cupo al mismo tiempo.
 
 La transacción permite guardar la reservación y descontar el cupo juntos. Si falla alguno de esos cambios, ambos se revierten.
+
+## Decisiones técnicas
+
+- Usaremos NestJS con TypeScript para separar el backend en módulos y mantener ordenadas las rutas, validaciones y lógica.
+- Usaremos PostgreSQL con TypeORM para manejar las tablas, relaciones y transacciones. Las tablas se crearán con migraciones, sin usar synchronize.
+- Al reservar, bloquearemos el paquete dentro de una transacción para revisar y descontar el cupo sin vender lugares de más.
+- Redis guardará los listados de paquetes durante 60 segundos para reducir consultas a la base de datos. La copia se invalidará al crear, editar, eliminar o reservar un paquete, y al cancelar una reservación.
+- RabbitMQ recibirá el evento de reservación creada y un worker procesará la notificación. El campo evento_id será único para no guardar la misma notificación dos veces.
+- Usaremos React con Vite, TypeScript y Tailwind para las pantallas. Zustand manejará la sesión y el listado de paquetes.
+- Usaremos JWT para identificar al usuario y revisar sus permisos según el rol. Las contraseñas se guardarán como hash con bcrypt.
