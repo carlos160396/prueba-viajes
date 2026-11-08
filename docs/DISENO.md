@@ -87,3 +87,11 @@ flowchart TD
 - Redis: guarda temporalmente los listados de paquetes para reducir consultas.
 - RabbitMQ: recibe el evento cuando se crea una reservación.
 - Worker: procesa el evento y guarda una notificación simulada.
+
+## Índices
+
+- reservaciones.cliente_id: para consultar las reservas de un cliente.
+- reservaciones.paquete_id: para consultar las reservas de un paquete.
+- paquetes.destino: para filtrar por destino.
+- paquetes.fecha_inicio: para filtrar por fecha de salida.
+- paquetes.precio: para filtrar por precio máximo.
