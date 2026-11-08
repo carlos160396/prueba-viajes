@@ -95,3 +95,34 @@ flowchart TD
 - paquetes.destino: para filtrar por destino.
 - paquetes.fecha_inicio: para filtrar por fecha de salida.
 - paquetes.precio: para filtrar por precio máximo.
+
+## Flujo de crear una reservación
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant A as API
+    participant P as PostgreSQL
+    participant R as Redis
+    participant Q as RabbitMQ
+
+    F->>A: Solicitar reservación
+    A->>A: Validar usuario, permisos y datos
+    A->>P: Iniciar transacción y bloquear paquete
+    P-->>A: Devolver cupo y precio actuales
+
+    alt Cupo insuficiente
+        A->>P: Revertir transacción
+        A-->>F: Error 409: cupo insuficiente
+    else Cupo suficiente
+        A->>P: Descontar cupo y guardar reservación
+        A->>P: Confirmar transacción
+        A->>R: Invalidar listado de paquetes
+        A->>Q: Publicar evento reserva.creada
+        A-->>F: Reservación creada
+    end
+```
+
+El bloqueo del paquete evita que dos solicitudes utilicen el mismo cupo al mismo tiempo.
+
+La transacción permite guardar la reservación y descontar el cupo juntos. Si falla alguno de esos cambios, ambos se revierten.
