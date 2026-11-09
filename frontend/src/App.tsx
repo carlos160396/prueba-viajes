@@ -11,6 +11,8 @@ import { Login } from "./pages/Login";
 import { useSessionStore } from "./stores/session";
 import type { Rol } from "./stores/session";
 import { Paquetes } from "./pages/Paquetes";
+import { CrearReservacion } from "./pages/CrearReservacion";
+import { Reservaciones } from "./pages/Reservaciones";
 
 function rutaInicial(rol: Rol) {
   return rol === "cliente" ? "/paquetes" : "/reservaciones";
@@ -124,17 +126,6 @@ function Layout() {
   );
 }
 
-function PantallaTemporal({ titulo }: { titulo: string }) {
-  return (
-    <section>
-      <h1 className="text-2xl font-bold">{titulo}</h1>
-      <p className="mt-2 text-slate-600">
-        Conectaremos los datos en el siguiente bloque.
-      </p>
-    </section>
-  );
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -144,11 +135,12 @@ export default function App() {
         <Route element={<Protegida roles={["admin", "agente", "cliente"]} />}>
           <Route element={<Layout />}>
             <Route path="/paquetes" element={<Paquetes />} />
-
             <Route
-              path="/reservaciones"
-              element={<PantallaTemporal titulo="Reservaciones" />}
+              path="/paquetes/:paqueteId/reservar"
+              element={<CrearReservacion />}
             />
+
+            <Route path="/reservaciones" element={<Reservaciones />} />
           </Route>
         </Route>
 
