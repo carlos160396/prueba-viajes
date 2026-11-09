@@ -13,6 +13,7 @@ import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
 import { RolUsuario } from '../usuarios/usuario.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -20,6 +21,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
   login(@Body() datos: LoginDto) {
     return this.authService.login(datos);
   }

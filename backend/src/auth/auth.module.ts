@@ -6,6 +6,7 @@ import { UsuariosModule } from 'src/usuarios/usuarios.module';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -20,9 +21,15 @@ import { RolesGuard } from './guards/roles.guard';
         },
       }),
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 5,
+      },
+    ]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtAuthGuard, RolesGuard, ThrottlerGuard],
   exports: [JwtModule, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}
