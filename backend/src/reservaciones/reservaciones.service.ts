@@ -151,4 +151,72 @@ export class ReservacionesService {
 
     return reservacion;
   }
+
+  async cambiarEstado(
+    id: string,
+    nuevoEstado: EstadoPago,
+    usuario: UsuarioAutenticado,
+  ): Promise<Reservacion> {
+    if (usuario.rol !== RolUsuario.AGENTE) {
+      throw new ForbiddenException(
+        'Solo los agentes pueden cambiar el estado de pago',
+      );
+    }
+
+    return this.reservacionesRepository.manager.transaction(async (manager) => {
+      const repositorio = manager.getRepository(Reservacion);
+
+      const reservacion = await repositorio.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!reservacion) {
+        throw new NotFoundException('Reservación no encontrada');
+      }
+
+      if (reservacion.estadoPago === nuevoEstado) {
+        return reservacion;
+      }
+
+      if (reservacion.estadoPago === EstadoPago.CANCELADA) {
+        throw new ConflictException(
+          'Una reservación cancelada no puede reactivarse',
+        );
+      }
+
+      if (nuevoEstado === EstadoPago.PENDIENTE) {
+        throw new ConflictException(
+          'La reservación no puede regresar a pendiente',
+        );
+      }
+
+      if (nuevoEstado === EstadoPago.CANCELADA) {
+        const paquetesRepository = manager.getRepository(Paquete);
+
+        const paquete = await paquetesRepository.findOne({
+          where: { id: reservacion.paqueteId },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!paquete) {
+          throw new NotFoundException('Paquete no encontrado');
+        }
+
+        const nuevoCupo = paquete.cupoDisponible + reservacion.numeroPersonas;
+
+        if (nuevoCupo > paquete.cupoTotal) {
+          throw new ConflictException('El cupo del paquete es inconsistente');
+        }
+
+        paquete.cupoDisponible = nuevoCupo;
+
+        await paquetesRepository.save(paquete);
+      }
+
+      reservacion.estadoPago = nuevoEstado;
+
+      return repositorio.save(reservacion);
+    });
+  }
 }
