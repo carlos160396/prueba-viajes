@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { api, ApiError } from "../lib/api";
@@ -46,7 +46,7 @@ export function CrearReservacion() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setError: setErrorCampo,
     formState: { errors, isSubmitting },
   } = useForm<DatosFormulario>({
@@ -57,7 +57,10 @@ export function CrearReservacion() {
     },
   });
 
-  const numeroPersonas = watch("numeroPersonas");
+  const numeroPersonas = useWatch({
+    control,
+    name: "numeroPersonas",
+  });
 
   useEffect(() => {
     const controller = new AbortController();
