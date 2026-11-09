@@ -1,122 +1,159 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useEffect } from "react";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Outlet,
+  Route,
+  Routes,
+} from "react-router-dom";
+import { Login } from "./pages/Login";
+import { useSessionStore } from "./stores/session";
+import type { Rol } from "./stores/session";
+import { Paquetes } from "./pages/Paquetes";
 
-function App() {
-  const [count, setCount] = useState(0)
+function rutaInicial(rol: Rol) {
+  return rol === "cliente" ? "/paquetes" : "/reservaciones";
+}
+
+function Protegida({ roles }: { roles: Rol[] }) {
+  const { token, usuario, expiresAt, cerrarSesion } = useSessionStore();
+
+  useEffect(() => {
+    if (!token) return;
+
+    const tiempoRestante = expiresAt - Date.now();
+
+    if (tiempoRestante <= 0) {
+      cerrarSesion();
+      return;
+    }
+
+    const timer = window.setTimeout(cerrarSesion, tiempoRestante);
+
+    function comprobarVencimiento() {
+      if (useSessionStore.getState().expiresAt <= Date.now()) {
+        cerrarSesion();
+      }
+    }
+
+    window.addEventListener("focus", comprobarVencimiento);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", comprobarVencimiento);
+    };
+  }, [token, expiresAt, cerrarSesion]);
+
+  if (!token || !usuario) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!roles.includes(usuario.rol)) {
+    return (
+      <p role="alert" className="p-6 text-red-800">
+        No tienes permiso para acceder a esta página.
+      </p>
+    );
+  }
+
+  return <Outlet />;
+}
+
+function Entrada() {
+  const { token, usuario } = useSessionStore();
+
+  return (
+    <Navigate
+      to={token && usuario ? rutaInicial(usuario.rol) : "/login"}
+      replace
+    />
+  );
+}
+
+function Layout() {
+  const { usuario, cerrarSesion } = useSessionStore();
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      <header className="border-b border-slate-200 bg-white px-4 py-4">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4">
+          <span className="text-xl font-bold text-brand-900">Viajes Lili</span>
 
-      <div className="ticks"></div>
+          <nav aria-label="Principal" className="flex gap-4">
+            <NavLink
+              to="/paquetes"
+              className={({ isActive }) =>
+                isActive ? "font-semibold text-brand-700 underline" : ""
+              }
+            >
+              Paquetes
+            </NavLink>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            <NavLink
+              to="/reservaciones"
+              className={({ isActive }) =>
+                isActive ? "font-semibold text-brand-700 underline" : ""
+              }
+            >
+              {usuario?.rol === "cliente"
+                ? "Mis reservaciones"
+                : "Reservaciones"}
+            </NavLink>
+          </nav>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+          <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
+            <span className="text-sm text-slate-600">
+              {usuario?.nombre} · {usuario?.rol}
+            </span>
+
+            <button
+              onClick={cerrarSesion}
+              className="rounded-lg border border-slate-300 px-3 py-2"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-6xl px-4 py-8">
+        <Outlet />
+      </main>
     </>
-  )
+  );
 }
 
-export default App
+function PantallaTemporal({ titulo }: { titulo: string }) {
+  return (
+    <section>
+      <h1 className="text-2xl font-bold">{titulo}</h1>
+      <p className="mt-2 text-slate-600">
+        Conectaremos los datos en el siguiente bloque.
+      </p>
+    </section>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+
+        <Route element={<Protegida roles={["admin", "agente", "cliente"]} />}>
+          <Route element={<Layout />}>
+            <Route path="/paquetes" element={<Paquetes />} />
+
+            <Route
+              path="/reservaciones"
+              element={<PantallaTemporal titulo="Reservaciones" />}
+            />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Entrada />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
