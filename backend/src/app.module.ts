@@ -7,6 +7,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 import { AuthModule } from './auth/auth.module';
 import { PaquetesModule } from './paquetes/paquetes.module';
 import { ReservacionesModule } from './reservaciones/reservaciones.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ReservacionesModule } from './reservaciones/reservaciones.module';
     AuthModule,
     PaquetesModule,
     ReservacionesModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],
