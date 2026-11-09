@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { usePaquetesStore } from "../stores/paquetes";
 import { useSessionStore } from "../stores/session";
+import { FiltrosPaquetes } from "../components/FiltrosPaquetes";
+import { filtrosIniciales } from "../stores/paquetes";
+import type { FiltrosPaquetes as DatosFiltros } from "../stores/paquetes";
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -18,6 +21,7 @@ function mostrarFecha(fecha: string) {
 export function Paquetes() {
   const [page, setPage] = useState(1);
   const [intento, setIntento] = useState(0);
+  const [filtros, setFiltros] = useState<DatosFiltros>(filtrosIniciales);
 
   const token = useSessionStore((state) => state.token);
 
@@ -27,10 +31,15 @@ export function Paquetes() {
   useEffect(() => {
     const controller = new AbortController();
 
-    void cargar(page, controller.signal);
+    void cargar(page, filtros, controller.signal);
 
     return () => controller.abort();
-  }, [page, intento, token, cargar]);
+  }, [page, filtros, intento, token, cargar]);
+
+  function buscar(datos: DatosFiltros) {
+    setFiltros(datos);
+    setPage(1);
+  }
 
   return (
     <section>
@@ -47,6 +56,8 @@ export function Paquetes() {
           Consulta fechas, precios por persona y lugares disponibles.
         </p>
       </div>
+
+      <FiltrosPaquetes onBuscar={buscar} />
 
       {cargando ? (
         <p role="status" className="py-12 text-center text-slate-600">
