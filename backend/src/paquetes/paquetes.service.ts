@@ -9,12 +9,22 @@ import { CrearPaqueteDto } from './dto/crear-paquete.dto';
 import { Paquete } from './paquete.entity';
 import { ListarPaquetesDto } from './dto/listar-paquetes.dto';
 import { ActualizarPaqueteDto } from './dto/actualizar-paquete.dto';
+import { RedisService } from 'src/redis/redis.service';
+
+export interface ListadoPaquetes {
+  items: Paquete[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 @Injectable()
 export class PaquetesService {
   constructor(
     @InjectRepository(Paquete)
     private readonly paquetesRepository: Repository<Paquete>,
+    private readonly redisService: RedisService,
   ) {}
 
   async crear(datos: CrearPaqueteDto): Promise<Paquete> {
@@ -33,7 +43,11 @@ export class PaquetesService {
       cupoDisponible: datos.cupoTotal,
     });
 
-    return this.paquetesRepository.save(paquete);
+    const guardado = await this.paquetesRepository.save(paquete);
+
+    await this.redisService.invalidarPaquetes();
+
+    return guardado;
   }
 
   async listar(filtros: ListarPaquetesDto) {
@@ -43,6 +57,27 @@ export class PaquetesService {
       throw new BadRequestException(
         'La fecha hasta no puede ser anterior a la fecha desde',
       );
+    }
+
+    const version = await this.redisService.obtenerVersionPaquetes();
+
+    const clave = version
+      ? `paquetes:listado:${version}:${JSON.stringify({
+          destino: destino?.trim() ?? '',
+          fechaDesde: fechaDesde ?? '',
+          fechaHasta: fechaHasta ?? '',
+          precioMax: precioMax ?? '',
+          page,
+          limit,
+        })}`
+      : null;
+
+    if (clave) {
+      const cache = await this.redisService.obtenerJson<ListadoPaquetes>(clave);
+
+      if (cache !== null) {
+        return cache;
+      }
     }
 
     const consulta = this.paquetesRepository
@@ -56,15 +91,21 @@ export class PaquetesService {
     }
 
     if (fechaDesde) {
-      consulta.andWhere('paquete.fechaInicio >= :fechaDesde', { fechaDesde });
+      consulta.andWhere('paquete.fechaInicio >= :fechaDesde', {
+        fechaDesde,
+      });
     }
 
     if (fechaHasta) {
-      consulta.andWhere('paquete.fechaFin <= :fechaHasta', { fechaHasta });
+      consulta.andWhere('paquete.fechaFin <= :fechaHasta', {
+        fechaHasta,
+      });
     }
 
     if (precioMax !== undefined) {
-      consulta.andWhere('paquete.precio <= :precioMax', { precioMax });
+      consulta.andWhere('paquete.precio <= :precioMax', {
+        precioMax,
+      });
     }
 
     const [items, total] = await consulta
@@ -74,13 +115,19 @@ export class PaquetesService {
       .take(limit)
       .getManyAndCount();
 
-    return {
+    const resultado = {
       items,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     };
+
+    if (clave) {
+      await this.redisService.guardarJson(clave, resultado, 60);
+    }
+
+    return resultado;
   }
 
   async buscarPorId(id: string): Promise<Paquete> {
@@ -103,53 +150,59 @@ export class PaquetesService {
       );
     }
 
-    return this.paquetesRepository.manager.transaction(async (manager) => {
-      const repositorio = manager.getRepository(Paquete);
+    const resultado = await this.paquetesRepository.manager.transaction(
+      async (manager) => {
+        const repositorio = manager.getRepository(Paquete);
 
-      const paquete = await repositorio.findOne({
-        where: { id, activo: true },
-        lock: { mode: 'pessimistic_write' },
-      });
+        const paquete = await repositorio.findOne({
+          where: { id, activo: true },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      if (!paquete) {
-        throw new NotFoundException('Paquete no encontrado');
-      }
+        if (!paquete) {
+          throw new NotFoundException('Paquete no encontrado');
+        }
 
-      const fechaInicio = datos.fechaInicio ?? paquete.fechaInicio;
-      const fechaFin = datos.fechaFin ?? paquete.fechaFin;
+        const fechaInicio = datos.fechaInicio ?? paquete.fechaInicio;
+        const fechaFin = datos.fechaFin ?? paquete.fechaFin;
 
-      if (fechaFin < fechaInicio) {
-        throw new BadRequestException(
-          'La fecha final no puede ser anterior a la inicial',
-        );
-      }
-
-      if (datos.cupoTotal !== undefined) {
-        const ocupados = paquete.cupoTotal - paquete.cupoDisponible;
-
-        if (datos.cupoTotal < ocupados) {
+        if (fechaFin < fechaInicio) {
           throw new BadRequestException(
-            'El cupo total no puede ser menor que los lugares reservados',
+            'La fecha final no puede ser anterior a la inicial',
           );
         }
 
-        paquete.cupoTotal = datos.cupoTotal;
-        paquete.cupoDisponible = datos.cupoTotal - ocupados;
-      }
+        if (datos.cupoTotal !== undefined) {
+          const ocupados = paquete.cupoTotal - paquete.cupoDisponible;
 
-      if (datos.destino !== undefined) {
-        paquete.destino = datos.destino.trim();
-      }
+          if (datos.cupoTotal < ocupados) {
+            throw new BadRequestException(
+              'El cupo total no puede ser menor que los lugares reservados',
+            );
+          }
 
-      if (datos.precio !== undefined) {
-        paquete.precio = datos.precio;
-      }
+          paquete.cupoTotal = datos.cupoTotal;
+          paquete.cupoDisponible = datos.cupoTotal - ocupados;
+        }
 
-      paquete.fechaInicio = fechaInicio;
-      paquete.fechaFin = fechaFin;
+        if (datos.destino !== undefined) {
+          paquete.destino = datos.destino.trim();
+        }
 
-      return repositorio.save(paquete);
-    });
+        if (datos.precio !== undefined) {
+          paquete.precio = datos.precio;
+        }
+
+        paquete.fechaInicio = fechaInicio;
+        paquete.fechaFin = fechaFin;
+
+        return repositorio.save(paquete);
+      },
+    );
+
+    await this.redisService.invalidarPaquetes();
+
+    return resultado;
   }
 
   async desactivar(id: string): Promise<void> {
@@ -160,5 +213,7 @@ export class PaquetesService {
     if (resultado.affected === 0) {
       throw new NotFoundException('Paquete no encontrado');
     }
+
+    await this.redisService.invalidarPaquetes();
   }
 }
