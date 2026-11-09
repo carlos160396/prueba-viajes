@@ -4,6 +4,7 @@ import { useSessionStore } from "../stores/session";
 import { FiltrosPaquetes } from "../components/FiltrosPaquetes";
 import { filtrosIniciales } from "../stores/paquetes";
 import type { FiltrosPaquetes as DatosFiltros } from "../stores/paquetes";
+import { Link } from "react-router-dom";
 
 const moneda = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -24,6 +25,8 @@ export function Paquetes() {
   const [filtros, setFiltros] = useState<DatosFiltros>(filtrosIniciales);
 
   const token = useSessionStore((state) => state.token);
+  const rol = useSessionStore((state) => state.usuario?.rol);
+  const puedeReservar = rol === "cliente" || rol === "agente";
 
   const { items, total, totalPages, cargando, error, cargar } =
     usePaquetesStore();
@@ -145,6 +148,20 @@ export function Paquetes() {
                     {moneda.format(Number(paquete.precio))}
                   </p>
                 </div>
+
+                {puedeReservar &&
+                  (paquete.activo && paquete.cupoDisponible > 0 ? (
+                    <Link
+                      to={`/paquetes/${paquete.id}/reservar`}
+                      className="mt-5 block rounded-lg bg-accent-500 px-4 py-3 text-center font-bold text-brand-900"
+                    >
+                      Reservar
+                    </Link>
+                  ) : (
+                    <p className="mt-5 text-center text-sm text-slate-500">
+                      No disponible para reservar
+                    </p>
+                  ))}
               </article>
             ))}
           </div>
