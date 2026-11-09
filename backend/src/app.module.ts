@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AuthModule } from './auth/auth.module';
 import { PaquetesModule } from './paquetes/paquetes.module';
+import { ReservacionesModule } from './reservaciones/reservaciones.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PaquetesModule } from './paquetes/paquetes.module';
     UsuariosModule,
     AuthModule,
     PaquetesModule,
+    ReservacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
