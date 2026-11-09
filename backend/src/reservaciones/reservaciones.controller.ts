@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -17,6 +18,7 @@ import { RolUsuario } from '../usuarios/usuario.entity';
 import { CrearReservacionDto } from './dto/crear-reservacion.dto';
 import { ReservacionesService } from './reservaciones.service';
 import { ListarReservacionesDto } from './dto/listar-reservaciones.dto';
+import { CambiarEstadoDto } from './dto/cambiar-estado.dto';
 
 @Controller('reservaciones')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,5 +50,19 @@ export class ReservacionesController {
     @Req() request: RequestAutenticada,
   ) {
     return this.reservacionesService.buscarPorId(id, request.user);
+  }
+
+  @Patch(':id/estado')
+  @Roles(RolUsuario.AGENTE)
+  cambiarEstado(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() datos: CambiarEstadoDto,
+    @Req() request: RequestAutenticada,
+  ) {
+    return this.reservacionesService.cambiarEstado(
+      id,
+      datos.estadoPago,
+      request.user,
+    );
   }
 }
