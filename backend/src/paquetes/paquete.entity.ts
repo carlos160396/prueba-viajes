@@ -50,4 +50,7 @@ export class Paquete {
     type: 'timestamptz',
   })
   updatedAt!: Date;
+
+  @Column({ type: 'boolean', default: true })
+  activo!: boolean;
 }
