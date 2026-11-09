@@ -12,6 +12,20 @@ export interface Paquete {
   activo: boolean;
 }
 
+export interface FiltrosPaquetes {
+  destino: string;
+  fechaDesde: string;
+  fechaHasta: string;
+  precioMax: string;
+}
+
+export const filtrosIniciales: FiltrosPaquetes = {
+  destino: "",
+  fechaDesde: "",
+  fechaHasta: "",
+  precioMax: "",
+};
+
 interface ListadoPaquetes {
   items: Paquete[];
   total: number;
@@ -26,7 +40,11 @@ interface PaquetesState {
   totalPages: number;
   cargando: boolean;
   error: string | null;
-  cargar: (page: number, signal: AbortSignal) => Promise<void>;
+  cargar: (
+    page: number,
+    filtros: FiltrosPaquetes,
+    signal: AbortSignal,
+  ) => Promise<void>;
 }
 
 export const usePaquetesStore = create<PaquetesState>((set) => ({
@@ -36,7 +54,7 @@ export const usePaquetesStore = create<PaquetesState>((set) => ({
   cargando: false,
   error: null,
 
-  cargar: async (page, signal) => {
+  cargar: async (page, filtros, signal) => {
     set({
       cargando: true,
       error: null,
@@ -45,9 +63,20 @@ export const usePaquetesStore = create<PaquetesState>((set) => ({
       totalPages: 0,
     });
 
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: "6",
+    });
+
+    for (const [campo, valor] of Object.entries(filtros)) {
+      if (valor !== "") {
+        params.set(campo, valor);
+      }
+    }
+
     try {
       const response = await api<ListadoPaquetes>(
-        `/paquetes?page=${page}&limit=6`,
+        `/paquetes?${params.toString()}`,
         { signal },
       );
 
