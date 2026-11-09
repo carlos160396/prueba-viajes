@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useSessionStore } from "../stores/session";
+import { AccionesReservacion } from "../components/AccionesReservacion";
 
 type EstadoPago = "PENDIENTE" | "PAGADA" | "CANCELADA";
 
@@ -203,6 +204,14 @@ export function Reservaciones() {
                   <p className="mt-5 break-all border-t border-slate-100 pt-4 text-xs text-slate-500">
                     Cliente: {reservacion.clienteId}
                   </p>
+                )}
+
+                {usuario?.rol === "agente" && (
+                  <AccionesReservacion
+                    reservacionId={reservacion.id}
+                    estadoPago={reservacion.estadoPago}
+                    onActualizar={() => setIntento((actual) => actual + 1)}
+                  />
                 )}
               </article>
             ))}
