@@ -14,6 +14,7 @@ import { RolUsuario, Usuario } from '../usuarios/usuario.entity';
 import { CrearReservacionDto } from './dto/crear-reservacion.dto';
 import { EstadoPago, Reservacion } from './reservacion.entity';
 import { ListarReservacionesDto } from './dto/listar-reservaciones.dto';
+import { RedisService } from 'src/redis/redis.service';
 
 const Dinero = Decimal.clone({ precision: 30 });
 
@@ -22,6 +23,7 @@ export class ReservacionesService {
   constructor(
     @InjectRepository(Reservacion)
     private readonly reservacionesRepository: Repository<Reservacion>,
+    private readonly redisService: RedisService,
   ) {}
 
   async crear(
@@ -50,53 +52,59 @@ export class ReservacionesService {
       );
     }
 
-    return this.reservacionesRepository.manager.transaction(async (manager) => {
-      const cliente = await manager.getRepository(Usuario).findOneBy({
-        id: clienteId,
-        rol: RolUsuario.CLIENTE,
-      });
+    const resultado = await this.reservacionesRepository.manager.transaction(
+      async (manager) => {
+        const cliente = await manager.getRepository(Usuario).findOneBy({
+          id: clienteId,
+          rol: RolUsuario.CLIENTE,
+        });
 
-      if (!cliente) {
-        throw new NotFoundException('Cliente no encontrado');
-      }
+        if (!cliente) {
+          throw new NotFoundException('Cliente no encontrado');
+        }
 
-      const paquetesRepository = manager.getRepository(Paquete);
+        const paquetesRepository = manager.getRepository(Paquete);
 
-      const paquete = await paquetesRepository.findOne({
-        where: { id: datos.paqueteId },
-        lock: { mode: 'pessimistic_write' },
-      });
+        const paquete = await paquetesRepository.findOne({
+          where: { id: datos.paqueteId },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      if (!paquete || !paquete.activo) {
-        throw new NotFoundException('Paquete no disponible');
-      }
+        if (!paquete || !paquete.activo) {
+          throw new NotFoundException('Paquete no disponible');
+        }
 
-      if (paquete.cupoDisponible < datos.numeroPersonas) {
-        throw new ConflictException('No hay cupo suficiente');
-      }
+        if (paquete.cupoDisponible < datos.numeroPersonas) {
+          throw new ConflictException('No hay cupo suficiente');
+        }
 
-      const total = new Dinero(paquete.precio)
-        .mul(datos.numeroPersonas)
-        .toFixed(2);
+        const total = new Dinero(paquete.precio)
+          .mul(datos.numeroPersonas)
+          .toFixed(2);
 
-      const repositorio = manager.getRepository(Reservacion);
+        const repositorio = manager.getRepository(Reservacion);
 
-      const reservacion = repositorio.create({
-        clienteId,
-        creadaPorId: usuario.id,
-        paqueteId: paquete.id,
-        numeroPersonas: datos.numeroPersonas,
-        precioUnitario: paquete.precio,
-        total,
-        estadoPago: EstadoPago.PENDIENTE,
-      });
+        const reservacion = repositorio.create({
+          clienteId,
+          creadaPorId: usuario.id,
+          paqueteId: paquete.id,
+          numeroPersonas: datos.numeroPersonas,
+          precioUnitario: paquete.precio,
+          total,
+          estadoPago: EstadoPago.PENDIENTE,
+        });
 
-      paquete.cupoDisponible -= datos.numeroPersonas;
+        paquete.cupoDisponible -= datos.numeroPersonas;
 
-      await paquetesRepository.save(paquete);
+        await paquetesRepository.save(paquete);
 
-      return repositorio.save(reservacion);
-    });
+        return repositorio.save(reservacion);
+      },
+    );
+
+    await this.redisService.invalidarPaquetes();
+
+    return resultado;
   }
 
   async listar(filtros: ListarReservacionesDto, usuario: UsuarioAutenticado) {
@@ -163,60 +171,66 @@ export class ReservacionesService {
       );
     }
 
-    return this.reservacionesRepository.manager.transaction(async (manager) => {
-      const repositorio = manager.getRepository(Reservacion);
+    const resultado = await this.reservacionesRepository.manager.transaction(
+      async (manager) => {
+        const repositorio = manager.getRepository(Reservacion);
 
-      const reservacion = await repositorio.findOne({
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
-      });
-
-      if (!reservacion) {
-        throw new NotFoundException('Reservación no encontrada');
-      }
-
-      if (reservacion.estadoPago === nuevoEstado) {
-        return reservacion;
-      }
-
-      if (reservacion.estadoPago === EstadoPago.CANCELADA) {
-        throw new ConflictException(
-          'Una reservación cancelada no puede reactivarse',
-        );
-      }
-
-      if (nuevoEstado === EstadoPago.PENDIENTE) {
-        throw new ConflictException(
-          'La reservación no puede regresar a pendiente',
-        );
-      }
-
-      if (nuevoEstado === EstadoPago.CANCELADA) {
-        const paquetesRepository = manager.getRepository(Paquete);
-
-        const paquete = await paquetesRepository.findOne({
-          where: { id: reservacion.paqueteId },
+        const reservacion = await repositorio.findOne({
+          where: { id },
           lock: { mode: 'pessimistic_write' },
         });
 
-        if (!paquete) {
-          throw new NotFoundException('Paquete no encontrado');
+        if (!reservacion) {
+          throw new NotFoundException('Reservación no encontrada');
         }
 
-        const nuevoCupo = paquete.cupoDisponible + reservacion.numeroPersonas;
-
-        if (nuevoCupo > paquete.cupoTotal) {
-          throw new ConflictException('El cupo del paquete es inconsistente');
+        if (reservacion.estadoPago === nuevoEstado) {
+          return reservacion;
         }
 
-        paquete.cupoDisponible = nuevoCupo;
+        if (reservacion.estadoPago === EstadoPago.CANCELADA) {
+          throw new ConflictException(
+            'Una reservación cancelada no puede reactivarse',
+          );
+        }
 
-        await paquetesRepository.save(paquete);
-      }
+        if (nuevoEstado === EstadoPago.PENDIENTE) {
+          throw new ConflictException(
+            'La reservación no puede regresar a pendiente',
+          );
+        }
 
-      reservacion.estadoPago = nuevoEstado;
+        if (nuevoEstado === EstadoPago.CANCELADA) {
+          const paquetesRepository = manager.getRepository(Paquete);
 
-      return repositorio.save(reservacion);
-    });
+          const paquete = await paquetesRepository.findOne({
+            where: { id: reservacion.paqueteId },
+            lock: { mode: 'pessimistic_write' },
+          });
+
+          if (!paquete) {
+            throw new NotFoundException('Paquete no encontrado');
+          }
+
+          const nuevoCupo = paquete.cupoDisponible + reservacion.numeroPersonas;
+
+          if (nuevoCupo > paquete.cupoTotal) {
+            throw new ConflictException('El cupo del paquete es inconsistente');
+          }
+
+          paquete.cupoDisponible = nuevoCupo;
+
+          await paquetesRepository.save(paquete);
+        }
+
+        reservacion.estadoPago = nuevoEstado;
+
+        return repositorio.save(reservacion);
+      },
+    );
+
+    await this.redisService.invalidarPaquetes();
+
+    return resultado;
   }
 }
