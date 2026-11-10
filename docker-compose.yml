@@ -73,6 +73,8 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
     command:
       - sh
       - -c
@@ -88,6 +90,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -100,6 +104,26 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 10
+    networks:
+      - viajes
+  worker:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+    command: ["node", "dist/worker.js"]
+    restart: on-failure
+    depends_on:
+      api:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - viajes
 
