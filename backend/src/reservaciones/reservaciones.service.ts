@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Decimal } from 'decimal.js';
@@ -15,15 +16,20 @@ import { CrearReservacionDto } from './dto/crear-reservacion.dto';
 import { EstadoPago, Reservacion } from './reservacion.entity';
 import { ListarReservacionesDto } from './dto/listar-reservaciones.dto';
 import { RedisService } from 'src/redis/redis.service';
+import { randomUUID } from 'node:crypto';
+import { MensajeriaService } from '../mensajeria/mensajeria.service';
 
 const Dinero = Decimal.clone({ precision: 30 });
 
 @Injectable()
 export class ReservacionesService {
+  private readonly logger = new Logger(ReservacionesService.name);
+
   constructor(
     @InjectRepository(Reservacion)
     private readonly reservacionesRepository: Repository<Reservacion>,
     private readonly redisService: RedisService,
+    private readonly mensajeriaService: MensajeriaService,
   ) {}
 
   async crear(
@@ -103,6 +109,24 @@ export class ReservacionesService {
     );
 
     await this.redisService.invalidarPaquetes();
+
+    const evento = {
+      eventoId: randomUUID(),
+      reservacionId: resultado.id,
+    };
+
+    try {
+      await this.mensajeriaService.publicarReservaCreada(evento);
+    } catch {
+      this.logger.error(
+        JSON.stringify({
+          mensaje:
+            'Reservación guardada, pero no se pudo publicar su notificación',
+          eventoId: evento.eventoId,
+          reservacionId: resultado.id,
+        }),
+      );
+    }
 
     return resultado;
   }
