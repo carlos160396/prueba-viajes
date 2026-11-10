@@ -40,11 +40,13 @@ export class PaquetesService {
       fechaFin: datos.fechaFin,
       precio: datos.precio,
       cupoTotal: datos.cupoTotal,
+      // Al crear, todo el cupo está libre.
       cupoDisponible: datos.cupoTotal,
     });
 
     const guardado = await this.paquetesRepository.save(paquete);
 
+    // El listado en Redis queda desactualizado; se cambia la versión.
     await this.redisService.invalidarPaquetes();
 
     return guardado;
@@ -59,8 +61,11 @@ export class PaquetesService {
       );
     }
 
+    // Si Redis no responde, version es null y se consulta solo PostgreSQL.
     const version = await this.redisService.obtenerVersionPaquetes();
 
+    // La clave incluye filtros + página. Al invalidar, cambia `version`
+    // y las claves viejas dejan de usarse (caducan solas a los 60s).
     const clave = version
       ? `paquetes:listado:${version}:${JSON.stringify({
           destino: destino?.trim() ?? '',
@@ -123,6 +128,7 @@ export class PaquetesService {
       totalPages: Math.ceil(total / limit),
     };
 
+    // Guarda 60 segundos. Si Redis falló, clave es null y se omite.
     if (clave) {
       await this.redisService.guardarJson(clave, resultado, 60);
     }
@@ -154,6 +160,7 @@ export class PaquetesService {
       async (manager) => {
         const repositorio = manager.getRepository(Paquete);
 
+        // Bloqueo para que no se mezcle con una reserva al mismo tiempo.
         const paquete = await repositorio.findOne({
           where: { id, activo: true },
           lock: { mode: 'pessimistic_write' },
@@ -173,6 +180,7 @@ export class PaquetesService {
         }
 
         if (datos.cupoTotal !== undefined) {
+          // Los lugares ya reservados se conservan al subir o bajar el total.
           const ocupados = paquete.cupoTotal - paquete.cupoDisponible;
 
           if (datos.cupoTotal < ocupados) {
@@ -206,6 +214,7 @@ export class PaquetesService {
   }
 
   async desactivar(id: string): Promise<void> {
+    // No borra la fila; solo deja de listarse y reservarse.
     const resultado = await this.paquetesRepository.update(id, {
       activo: false,
     });
