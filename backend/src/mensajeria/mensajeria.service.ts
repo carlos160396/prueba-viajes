@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 
+// Nombre de la cola de RabbitMQ. El API publica aquí y el worker consume.
 export const COLA_RESERVA_CREADA = 'reserva.creada';
 
 export interface EventoReservaCreada {
@@ -24,6 +25,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
 
   constructor(private readonly config: ConfigService) {}
 
+  // Al arrancar Nest, abre conexión, canal y asegura que la cola exista.
   async onModuleInit(): Promise<void> {
     this.conexion = await amqp.connect(
       {
@@ -46,6 +48,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('Conexión con RabbitMQ cerrada');
     });
 
+    // ConfirmChannel: sendToQueue avisa cuando RabbitMQ aceptó el mensaje.
     const canal = await this.conexion.createConfirmChannel();
 
     canal.on('error', () => {
@@ -58,6 +61,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
       }
     });
 
+    // durable: la cola sobrevive a un reinicio de RabbitMQ.
     await canal.assertQueue(COLA_RESERVA_CREADA, {
       durable: true,
     });
@@ -76,11 +80,13 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
+    // Espera el ack del broker antes de resolver.
     await new Promise<void>((resolve, reject) => {
       canal.sendToQueue(
         COLA_RESERVA_CREADA,
         Buffer.from(JSON.stringify(evento)),
         {
+          // persistent: el mensaje también se guarda en disco.
           persistent: true,
           contentType: 'application/json',
           type: COLA_RESERVA_CREADA,
@@ -98,6 +104,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  // Usado por /health: comprueba que la cola siga accesible.
   async verificarConexion(): Promise<void> {
     const canal = this.canal;
 
@@ -108,6 +115,7 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
     await canal.checkQueue(COLA_RESERVA_CREADA);
   }
 
+  // Cierra canal y conexión al apagar la API.
   async onModuleDestroy(): Promise<void> {
     try {
       await this.canal?.close();
