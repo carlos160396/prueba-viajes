@@ -31,7 +31,7 @@ export class JwtAuthGuard implements CanActivate {
           algorithms: ['HS256'],
         },
       );
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Token invalido o expirado');
     }
 
