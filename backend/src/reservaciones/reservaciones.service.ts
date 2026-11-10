@@ -19,6 +19,7 @@ import { RedisService } from 'src/redis/redis.service';
 import { randomUUID } from 'node:crypto';
 import { MensajeriaService } from '../mensajeria/mensajeria.service';
 
+// Precisión alta para que 1500.10 × 3 no salga mal por redondeo de JS.
 const Dinero = Decimal.clone({ precision: 30 });
 
 @Injectable()
@@ -38,6 +39,7 @@ export class ReservacionesService {
   ): Promise<Reservacion> {
     let clienteId: string;
 
+    // Un cliente solo reserva para sí; un agente debe indicar el cliente.
     if (usuario.rol === RolUsuario.CLIENTE) {
       if (datos.clienteId !== undefined && datos.clienteId !== usuario.id) {
         throw new ForbiddenException('Solo puedes crear reservaciones propias');
@@ -58,6 +60,7 @@ export class ReservacionesService {
       );
     }
 
+    // Cupo + reserva en la misma transacción para no quedar a medias.
     const resultado = await this.reservacionesRepository.manager.transaction(
       async (manager) => {
         const cliente = await manager.getRepository(Usuario).findOneBy({
@@ -71,6 +74,7 @@ export class ReservacionesService {
 
         const paquetesRepository = manager.getRepository(Paquete);
 
+        // Bloqueo pesimista: dos reservas no descuentan el mismo cupo.
         const paquete = await paquetesRepository.findOne({
           where: { id: datos.paqueteId },
           lock: { mode: 'pessimistic_write' },
@@ -84,6 +88,7 @@ export class ReservacionesService {
           throw new ConflictException('No hay cupo suficiente');
         }
 
+        // total = precio unitario × número de personas.
         const total = new Dinero(paquete.precio)
           .mul(datos.numeroPersonas)
           .toFixed(2);
@@ -100,6 +105,7 @@ export class ReservacionesService {
           estadoPago: EstadoPago.PENDIENTE,
         });
 
+        // Resta el cupo usado por esta reserva.
         paquete.cupoDisponible -= datos.numeroPersonas;
 
         await paquetesRepository.save(paquete);
@@ -108,6 +114,7 @@ export class ReservacionesService {
       },
     );
 
+    // El listado de paquetes debe mostrar el cupo nuevo.
     await this.redisService.invalidarPaquetes();
 
     const evento = {
@@ -115,6 +122,7 @@ export class ReservacionesService {
       reservacionId: resultado.id,
     };
 
+    // Si RabbitMQ falla, la reserva ya está guardada; solo se registra el error.
     try {
       await this.mensajeriaService.publicarReservaCreada(evento);
     } catch {
@@ -135,6 +143,7 @@ export class ReservacionesService {
     const { page, limit } = filtros;
 
     const [items, total] = await this.reservacionesRepository.findAndCount({
+      // El cliente solo ve las suyas; agente/admin ven todas.
       where:
         usuario.rol === RolUsuario.CLIENTE ? { clienteId: usuario.id } : {},
       relations: {
@@ -208,6 +217,7 @@ export class ReservacionesService {
           throw new NotFoundException('Reservación no encontrada');
         }
 
+        // Cancelar dos veces no debe devolver cupo otra vez.
         if (reservacion.estadoPago === nuevoEstado) {
           return reservacion;
         }
@@ -224,6 +234,7 @@ export class ReservacionesService {
           );
         }
 
+        // Al cancelar se liberan las plazas al paquete.
         if (nuevoEstado === EstadoPago.CANCELADA) {
           const paquetesRepository = manager.getRepository(Paquete);
 
