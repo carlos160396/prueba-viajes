@@ -10,6 +10,7 @@ import { ReservacionesModule } from './reservaciones/reservaciones.module';
 import { RedisModule } from './redis/redis.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { MensajeriaModule } from './mensajeria/mensajeria.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { MensajeriaModule } from './mensajeria/mensajeria.module';
     RedisModule,
     NotificacionesModule,
     MensajeriaModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
