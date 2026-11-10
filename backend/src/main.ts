@@ -8,6 +8,14 @@ import type { NextFunction, Request, Response } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Permitir peticiones desde el frontend local de Docker y Vite.
+  app.enableCors({
+    origin: ['http://localhost:8080', 'http://localhost:5173'],
+
+    // Permitir que el frontend pueda leer el identificador de la petición.
+    exposedHeaders: ['X-Request-Id'],
+  });
+
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestId = randomUUID();
     const inicio = process.hrtime.bigint();
