@@ -16,6 +16,7 @@ async function bootstrap() {
     exposedHeaders: ['X-Request-Id'],
   });
 
+  // Log de cada petición en JSON, con id y duración.
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestId = randomUUID();
     const inicio = process.hrtime.bigint();
@@ -50,6 +51,7 @@ async function bootstrap() {
 
     res.once('finish', () => registrar(false));
 
+    // close sin finish = el cliente cortó la conexión.
     res.once('close', () => {
       if (!res.writableFinished) {
         registrar(true);
@@ -59,6 +61,8 @@ async function bootstrap() {
     next();
   });
 
+  // whitelist: quita campos no declarados en el DTO.
+  // forbidNonWhitelisted: si mandan extras, responde 400.
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -76,6 +80,7 @@ async function bootstrap() {
 
   const documento = SwaggerModule.createDocument(app, configuracion);
 
+  // Documentación interactiva en /docs.
   SwaggerModule.setup('docs', app, documento);
 
   await app.listen(process.env.PORT ?? 3000);
