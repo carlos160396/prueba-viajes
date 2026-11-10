@@ -37,6 +37,38 @@ async function seed(): Promise<void> {
     const paquetes = [
       // Más destinos para probar filtros y paginación.
       // Los IDs fijos evitan duplicarlos al reiniciar Docker.
+      // Completar los doce paquetes de demostración.
+      // Los IDs fijos permiten repetir el seed sin duplicarlos.
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        destino: 'Cancún',
+        fechaInicio: '2027-01-15',
+        fechaFin: '2027-01-20',
+        precio: '6500.00',
+        cupoTotal: 20,
+        cupoDisponible: 20,
+        activo: true,
+      },
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        destino: 'Puerto Vallarta',
+        fechaInicio: '2027-02-10',
+        fechaFin: '2027-02-14',
+        precio: '4200.00',
+        cupoTotal: 15,
+        cupoDisponible: 15,
+        activo: true,
+      },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        destino: 'Los Cabos',
+        fechaInicio: '2027-03-05',
+        fechaFin: '2027-03-10',
+        precio: '7800.00',
+        cupoTotal: 12,
+        cupoDisponible: 12,
+        activo: true,
+      },
       {
         id: '44444444-4444-4444-8444-444444444444',
         destino: 'Mazatlán',
