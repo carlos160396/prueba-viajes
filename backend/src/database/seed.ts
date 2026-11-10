@@ -3,6 +3,7 @@ import dataSource from './data-source';
 import { RolUsuario, Usuario } from '../usuarios/usuario.entity';
 import { Paquete } from '../paquetes/paquete.entity';
 
+// Carga usuarios y paquetes de demostración. Se puede ejecutar varias veces.
 async function seed(): Promise<void> {
   try {
     await dataSource.initialize();
