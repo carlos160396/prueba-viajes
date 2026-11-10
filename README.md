@@ -157,6 +157,33 @@ Contraseña para los tres usuarios: `Prueba123!`.
 
 Estas cuentas son exclusivamente para demostración.
 
+## Ejecutar el seed manualmente
+
+El seed ya se ejecuta automáticamente al iniciar la API con Docker.
+
+Para repetirlo, con la API en ejecución y desde la raíz del repositorio:
+
+```text
+docker compose exec api node dist/database/seed.js
+```
+
+Este comando funciona en CMD, PowerShell, macOS y Linux.
+
+Para ejecutarlo fuera de Docker, desde la raíz:
+
+```text
+cd backend
+npm ci
+npm run seed
+```
+
+Esta segunda opción requiere Node.js 24, PostgreSQL disponible y
+las variables de conexión local configuradas en el `.env` de la raíz.
+El comando compila el backend antes de ejecutar el seed.
+
+El seed crea usuarios y paquetes de demostración. Repetirlo no duplica
+esos registros ni restablece contraseñas, precios o cupos existentes.
+
 ## Permisos
 
 - Administrador: crear, editar y desactivar paquetes; consultar todas
