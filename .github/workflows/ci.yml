@@ -1,0 +1,111 @@
+name: CI
+
+# Se ejecuta al subir cambios a main, abrir un PR
+# o iniciarlo manualmente desde GitHub Actions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # npm ci instala las versiones exactas del lockfile.
+      - name: Instalar dependencias
+        run: npm ci
+
+      # En CI solo verificamos; no corregimos archivos automáticamente.
+      - name: Revisar lint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+
+      # Ejecuta todas las pruebas y exige al menos 60 %
+      # en los servicios de negocio, manteniendo explícito ese alcance.
+      - name: Pruebas y cobertura de servicios de negocio
+        run: >-
+          npm run test:cov -- --runInBand
+          --collectCoverageFrom='{auth,paquetes,reservaciones}/*.service.ts'
+          --coverageThreshold='{"global":{"statements":60,"branches":60,"functions":60,"lines":60}}'
+
+      - name: Compilar backend
+        run: npm run build
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Revisar lint
+        run: npm run lint
+
+      - name: Ejecutar pruebas
+        run: npm test
+
+      - name: Compilar frontend
+        run: npm run build
+
+  docker:
+    name: Imágenes Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Construimos las imágenes después de pasar las verificaciones.
+    needs: [backend, frontend]
+
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+
+      # API y worker usan el mismo Dockerfile del backend.
+      # Una construcción produce las dos etiquetas.
+      - name: Construir imagen de API y worker
+        run: >-
+          docker build
+          --tag prueba-viajes-api:ci
+          --tag prueba-viajes-worker:ci
+          ./backend
+
+      - name: Construir imagen del frontend
+        run: docker build --tag prueba-viajes-frontend:ci ./frontend
+
+      # Solo verificamos la construcción; no publicamos imágenes
+      # ni necesitamos credenciales de Docker Hub.
