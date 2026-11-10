@@ -98,6 +98,16 @@ export class MensajeriaService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async verificarConexion(): Promise<void> {
+    const canal = this.canal;
+
+    if (!canal) {
+      throw new ServiceUnavailableException('RabbitMQ no disponible');
+    }
+
+    await canal.checkQueue(COLA_RESERVA_CREADA);
+  }
+
   async onModuleDestroy(): Promise<void> {
     try {
       await this.canal?.close();
