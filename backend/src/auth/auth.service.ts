@@ -15,12 +15,15 @@ export class AuthService {
   ) {}
 
   async login(datos: LoginDto) {
+    // passwordHash está oculto por select: false; hay que pedirlo explícito.
     const usuario = await this.usuariosRepository
       .createQueryBuilder('usuario')
       .addSelect('usuario.passwordHash')
       .where('usuario.email = :email', { email: datos.email })
       .getOne();
 
+    // Mismo mensaje si el email no existe o la contraseña falla:
+    // así no se revela si la cuenta está registrada.
     if (!usuario) {
       throw new UnauthorizedException('Credenciales incorrectas');
     }
@@ -34,6 +37,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales incorrectas');
     }
 
+    // El token lleva el id (sub) y el rol; JwtAuthGuard los leerá después.
     const accessToken = await this.jwtService.signAsync({
       sub: usuario.id,
       rol: usuario.rol,
