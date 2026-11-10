@@ -11,6 +11,7 @@ export class HealthController {
     private readonly mensajeriaService: MensajeriaService,
   ) {}
 
+  // Ejecuta un ping y, si tarda más de 2s, lo marca como down.
   private async comprobar(
     operacion: () => Promise<unknown>,
   ): Promise<'up' | 'down'> {
@@ -39,6 +40,7 @@ export class HealthController {
 
   @Get()
   async verificar() {
+    // Las tres dependencias se prueban en paralelo.
     const [postgres, redis, rabbitmq] = await Promise.all([
       this.comprobar(() => this.dataSource.query('SELECT 1')),
       this.comprobar(async () => {
@@ -64,6 +66,7 @@ export class HealthController {
       },
     };
 
+    // HTTP 503 si falta alguno; Docker/orquestadores lo usan para healthcheck.
     if (!disponible) {
       throw new ServiceUnavailableException(resultado);
     }
