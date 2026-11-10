@@ -5,6 +5,17 @@ import { Notificacion } from './notificaciones/notificacion.entity';
 import { COLA_RESERVA_CREADA } from './mensajeria/mensajeria.service';
 import type { EventoReservaCreada } from './mensajeria/mensajeria.service';
 
+// Proceso aparte de la API. Escucha la cola `reserva.creada` y guarda
+// una fila en `notificaciones` por cada reserva.
+//
+// Flujo:
+//   API crea reserva -> publica { eventoId, reservacionId } en RabbitMQ
+//   -> este worker consume el mensaje -> INSERT en notificaciones.
+//
+// Por qué no lo hace la API en el mismo request:
+//   Si RabbitMQ o la tabla fallan, la reserva ya está guardada.
+//   El worker reintenta; la API no se queda esperando.
+
 function esEventoValido(valor: unknown): valor is EventoReservaCreada {
   if (typeof valor !== 'object' || valor === null) {
     return false;
@@ -12,6 +23,7 @@ function esEventoValido(valor: unknown): valor is EventoReservaCreada {
 
   const evento = valor as Record<string, unknown>;
 
+  // Ambos ids deben ser UUID v4; si no, el mensaje se descarta.
   return (
     typeof evento.eventoId === 'string' &&
     isUUID(evento.eventoId, '4') &&
@@ -47,6 +59,8 @@ async function iniciarWorker(): Promise<void> {
   let cerrando = false;
 
   conexion.on('close', () => {
+    // Si se cierra sin SIGTERM/SIGINT, Docker/el proceso padre debe
+    // levantar otra instancia. process.exit(1) marca fallo.
     if (!cerrando) {
       console.error(
         JSON.stringify({
@@ -76,10 +90,13 @@ async function iniciarWorker(): Promise<void> {
     }
   });
 
+  // Misma cola que publica MensajeriaService. durable = sobrevive reinicios.
   await canal.assertQueue(COLA_RESERVA_CREADA, {
     durable: true,
   });
 
+  // prefetch(1): no toma un segundo mensaje hasta ack/nack del actual.
+  // Evita que un worker lento acumule trabajo sin procesar.
   await canal.prefetch(1);
 
   async function procesar(mensaje: amqp.ConsumeMessage): Promise<void> {
@@ -88,6 +105,7 @@ async function iniciarWorker(): Promise<void> {
     try {
       evento = JSON.parse(mensaje.content.toString()) as unknown;
     } catch {
+      // nack(..., false, false) = no reencolar. JSON basura no se reintenta.
       canal.nack(mensaje, false, false);
       console.error(
         JSON.stringify({
@@ -110,6 +128,7 @@ async function iniciarWorker(): Promise<void> {
     }
 
     try {
+      // orIgnore: si evento_id ya existe (reentrega), no inserta otra fila.
       await dataSource
         .createQueryBuilder()
         .insert()
@@ -121,6 +140,7 @@ async function iniciarWorker(): Promise<void> {
         .orIgnore()
         .execute();
     } catch {
+      // Fallo temporal de BD: espera 1s y reencola (requeue = true).
       console.error(
         JSON.stringify({
           nivel: 'error',
@@ -135,6 +155,7 @@ async function iniciarWorker(): Promise<void> {
       return;
     }
 
+    // ack = "ya lo procesé, quítalo de la cola".
     canal.ack(mensaje);
 
     console.log(
@@ -163,6 +184,7 @@ async function iniciarWorker(): Promise<void> {
         });
       }
     },
+    // noAck: false = nosotros hacemos ack/nack a mano (arriba).
     { noAck: false },
   );
 
@@ -175,6 +197,7 @@ async function iniciarWorker(): Promise<void> {
     await dataSource.destroy();
   }
 
+  // Docker envía SIGTERM al parar el contenedor.
   for (const señal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(señal, () => {
       void cerrar().catch(() => process.exit(1));
