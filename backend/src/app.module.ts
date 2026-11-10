@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { PaquetesModule } from './paquetes/paquetes.module';
 import { ReservacionesModule } from './reservaciones/reservaciones.module';
 import { RedisModule } from './redis/redis.module';
+import { NotificacionesModule } from './notificaciones/notificaciones.module';
+import { MensajeriaModule } from './mensajeria/mensajeria.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { RedisModule } from './redis/redis.module';
     PaquetesModule,
     ReservacionesModule,
     RedisModule,
+    NotificacionesModule,
+    MensajeriaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
