@@ -19,7 +19,9 @@ import { CrearReservacionDto } from './dto/crear-reservacion.dto';
 import { ReservacionesService } from './reservaciones.service';
 import { ListarReservacionesDto } from './dto/listar-reservaciones.dto';
 import { CambiarEstadoDto } from './dto/cambiar-estado.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiBearerAuth()
 @Controller('reservaciones')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ReservacionesController {

@@ -20,7 +20,9 @@ import { CrearPaqueteDto } from './dto/crear-paquete.dto';
 import { PaquetesService } from './paquetes.service';
 import { ListarPaquetesDto } from './dto/listar-paquetes.dto';
 import { ActualizarPaqueteDto } from './dto/actualizar-paquete.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiBearerAuth()
 @Controller('paquetes')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PaquetesController {

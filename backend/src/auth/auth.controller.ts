@@ -14,6 +14,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { RolUsuario } from '../usuarios/usuario.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('auth')
 export class AuthController {
@@ -26,6 +27,7 @@ export class AuthController {
     return this.authService.login(datos);
   }
 
+  @ApiBearerAuth()
   @Get('prueba-admin')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(RolUsuario.ADMIN)
