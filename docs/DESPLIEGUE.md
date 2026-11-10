@@ -217,3 +217,26 @@ Un despliegue público necesitaría, entre otras medidas:
 
 Estas medidas describen trabajo adicional; no se presentan como
 funcionalidades ya implementadas.
+
+## Despliegue propuesto
+
+Para una primera versión usaría una instancia EC2 en AWS con Docker
+Compose, dominio y HTTPS. Solo publicaría el acceso web; los servicios
+de datos quedarían en la red interna.
+
+Separaría desarrollo, QA y producción, cada uno con su configuración
+y base de datos. Primero comprobaría la versión en QA y solicitaría
+aprobación manual antes de pasar a producción.
+
+Las contraseñas, JWT_SECRET y credenciales de despliegue irían en
+GitHub Secrets o en el gestor de secretos del ambiente. Puertos y
+opciones sin datos sensibles serían variables normales.
+
+Identificaría cada imagen por su commit. Antes de una migración
+comprobaría el respaldo y su compatibilidad con la versión anterior.
+Si el despliegue falla, volvería a la imagen anterior solo cuando
+el esquema lo permita; de lo contrario prepararía una corrección.
+No ejecutaría un down automático que pueda eliminar información.
+
+Esta propuesta requiere ampliar el pipeline actual y no se desplegó
+en AWS durante la prueba.
