@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { Usuario } from '../usuarios/usuario.entity';
 import { Paquete } from '../paquetes/paquete.entity';
 import { Reservacion } from '../reservaciones/reservacion.entity';
+import { Notificacion } from '../notificaciones/notificacion.entity';
 
 config({ path: resolve(process.cwd(), '../.env') });
 
@@ -18,7 +19,7 @@ export default new DataSource({
   username: env.getOrThrow<string>('POSTGRES_USER'),
   password: env.getOrThrow<string>('POSTGRES_PASSWORD'),
   database: env.getOrThrow<string>('POSTGRES_DB'),
-  entities: [Usuario, Paquete, Reservacion],
+  entities: [Usuario, Paquete, Reservacion, Notificacion],
   migrations: [join(__dirname, 'migrations', '*.js')],
   synchronize: false,
 });
